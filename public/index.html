@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Real-Time Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="dist/L.Icon.Pulse.css"/> <!-- Add the path to leaflet.pulse-icon.css -->
+</head>
+<body>
+  <div id="mapid" style="height: 100vh;"></div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="dist/L.Icon.Pulse.js"></script> <!-- Add the path to leaflet.pulse-icon.js -->
+  <script>
+    var mymap = L.map('mapid').setView([-19.996096, -158.118204], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    }).addTo(mymap);
+
+    var dinosaurPulse = [];
+    var dinosaurPaths = [];
+
+    var socket = io();
+    socket.on('gps update', function(data) {
+      // Remove the old pulsating markers and paths
+      dinosaurPulse.forEach(marker => mymap.removeLayer(marker));
+      dinosaurPaths.forEach(path => mymap.removeLayer(path));
+
+      dinosaurPulse = [];
+      dinosaurPaths = [];
+
+      data.forEach(dinosaur => {
+        // Create a new pulsating marker at the updated location
+        var pulse = L.icon.pulse({color:'red',heartbeat:2}); // Create a new pulsating icon
+        var marker = L.marker([dinosaur.lat, dinosaur.lng], {icon: pulse}).addTo(mymap);
+        dinosaurPulse.push(marker);
+    
+        // Bind a popup to the marker to display the dinosaur's information when clicked
+        marker.bindPopup(`
+          <b>Name:</b> ${dinosaur.dinosaur.Name}<br>
+          <b>Weight:</b> ${dinosaur.dinosaur.Weight} kg<br>
+          <b>Age:</b> ${dinosaur.dinosaur.Age} years<br>
+          <b>Sex:</b> ${dinosaur.dinosaur.Sex}
+        `);
+    
+        // Draw the path of the dinosaur on the map when the marker is clicked
+        marker.on('mouseover', function() {
+          if (dinosaur.path && dinosaur.path.length > 1) {
+            var path = L.polyline(dinosaur.path.map(location => [location.lat, location.lng]), {color: 'red'}).addTo(mymap);
+            dinosaurPaths.push(path);
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
