@@ -12,7 +12,7 @@ const io = socketIo(server);
 app.use(express.static('public'));
 
 // Load your GeoJSON data
-const geojsonData = JSON.parse(fs.readFileSync('./maps/enclosures.geojson', 'utf8'));
+const geojsonData = JSON.parse(fs.readFileSync('./public/maps/enclosures.geojson', 'utf8'));
 
 // Find the T-Rex enclosure polygon
 const tRexEnclosure = geojsonData.features.find(feature => feature.properties.Enclosure === 'Tyrannosaurus Rex');

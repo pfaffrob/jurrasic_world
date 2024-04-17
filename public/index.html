@@ -16,6 +16,17 @@
       maxZoom: 19,
     }).addTo(mymap);
 
+    // Load GeoJSON from an external file
+    fetch('/maps/enclosures.geojson')
+    .then(response => response.json())
+    .then(data => {
+      // Add GeoJSON layer to the map once the file is loaded
+      L.geoJSON(data).addTo(mymap);
+    })
+    .catch(error => console.error('Error:', error));
+
+
+
     var dinosaurPulse = [];
     var dinosaurPaths = [];
 
