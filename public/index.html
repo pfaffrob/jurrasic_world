@@ -3,70 +3,95 @@
 <head>
   <title>Real-Time Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <link rel="stylesheet" href="dist/L.Icon.Pulse.css"/> <!-- Add the path to leaflet.pulse-icon.css -->
+  <link rel="stylesheet" href="dist/L.Icon.Pulse.css"/>
+  <link rel="stylesheet" href="css/styles.css"/> 
 </head>
 <body>
   <div id="mapid" style="height: 100vh;"></div>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="dist/L.Icon.Pulse.js"></script> <!-- Add the path to leaflet.pulse-icon.js -->
+  <script src="dist/L.Icon.Pulse.js"></script>
   <script>
     var mymap = L.map('mapid').setView([-19.996096, -158.118204], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19,
     }).addTo(mymap);
+    
 
-    // Load GeoJSON from an external file
-    fetch('/maps/enclosures.geojson')
-    .then(response => response.json())
-    .then(data => {
-      // Add GeoJSON layer to the map once the file is loaded
-      L.geoJSON(data).addTo(mymap);
-    })
-    .catch(error => console.error('Error:', error));
-
-    var dinosaurPulse = {};
-    var dinosaurPaths = {};
-
+      // Load GeoJSON from an external file
+      fetch('/maps/enclosures.geojson')
+      .then(response => response.json())
+      .then(data => {
+        // Add GeoJSON layer to the map once the file is loaded
+        L.geoJSON(data, {
+          style: function(feature) {
+            return {color: '#36C8F6'}; // Change the color of the features
+          },
+          onEachFeature: function(feature, layer) {
+            layer.bindTooltip(feature.properties.Enclosure, {permanent: true, direction: 'center', className: 'labelstyle'}); // Add the Enclosure property in the center of each feature
+          },
+          pointToLayer: function(feature, latlng) {
+            return L.circleMarker(latlng, {radius: 10}); // Change the marker to a circle marker with a radius of 10
+          }
+        }).addTo(mymap);
+      })
+      .catch(error => console.error('Error:', error));
+    
+    var dinosaurMarkers = {}; // Object to store dinosaur markers
+    var hoveredMarker = null; // Store the currently hovered marker
+    
     var socket = io();
     socket.on('gps update', function(data) {
-      console.log(data)
-      for (let enclosure in data) {
-        // Remove the old pulsating markers and paths
-        if (dinosaurPulse[enclosure]) {
-          dinosaurPulse[enclosure].forEach(marker => mymap.removeLayer(marker));
-        }
-        if (dinosaurPaths[enclosure]) {
-          dinosaurPaths[enclosure].forEach(path => mymap.removeLayer(path));
+      console.log(data);
+
+      // If a marker is being hovered, remove its path
+      if (hoveredMarker && hoveredMarker.path) {
+        mymap.removeLayer(hoveredMarker.path);
+      }
+
+      // Loop through each enclosure's data
+      data.locations.forEach(function(location) {
+        var dinosaur = location.dinosaur;
+        var latlng = L.latLng(location.lat, location.lng);
+    
+        // Check if the dinosaur marker already exists
+        if (dinosaurMarkers[dinosaur.Name]) {
+          // Remove the existing marker
+          mymap.removeLayer(dinosaurMarkers[dinosaur.Name]);
         }
         
-        dinosaurPulse[enclosure] = [];
-        dinosaurPaths[enclosure] = [];
+        // Create a new marker for the dinosaur
+        var pulse = L.icon.pulse({color:'red',heartbeat:2});
+        var marker = L.marker(latlng, {icon: pulse}).addTo(mymap);
+        dinosaurMarkers[dinosaur.Name] = marker;
 
-        data[enclosure].forEach(dinosaur => {
-          // Create a new pulsating marker at the updated location
-          var pulse = L.icon.pulse({color:'red',heartbeat:2}); // Create a new pulsating icon
-          var marker = L.marker([dinosaur.lat, dinosaur.lng], {icon: pulse}).addTo(mymap);
-          dinosaurPulse[enclosure].push(marker);
-      
-          // Bind a popup to the marker to display the dinosaur's information when clicked
-          marker.bindPopup(`
-            <b>Name:</b> ${dinosaur.dinosaur.Name}<br>
-            <b>Weight:</b> ${dinosaur.dinosaur.Weight} kg<br>
-            <b>Age:</b> ${dinosaur.dinosaur.Age} years<br>
-            <b>Sex:</b> ${dinosaur.dinosaur.Sex}
-          `);
-      
-          // Draw the path of the dinosaur on the map when the marker is clicked
-          marker.on('mouseover', function() {
-            if (dinosaur.path && dinosaur.path.length > 1) {
-              var path = L.polyline(dinosaur.path.map(location => [location.lat, location.lng]), {color: 'red'}).addTo(mymap);
-              dinosaurPaths[enclosure].push(path);
-            }
-          });
+        // Show the path when the mouse hovers over the marker
+        marker.on('mouseover', function() {
+          if (location.path && location.path.length > 1) {
+            var path = L.polyline(location.path, {color: 'red'}).addTo(mymap);
+            marker.path = path; // Store the path in the marker
+            hoveredMarker = marker; // Store the currently hovered marker
+          }
         });
-      }
+
+        // Hide the path when the mouse leaves the marker
+        marker.on('mouseout', function() {
+          if (marker.path) {
+            mymap.removeLayer(marker.path);
+            hoveredMarker = null; // Clear the currently hovered marker
+          }
+        });
+
+        // Display additional info on the dinosaur when the marker is clicked
+        marker.bindPopup(`
+          <b>Name:</b> ${dinosaur.Name}<br>
+          <b>Weight:</b> ${dinosaur.Weight}<br>
+          <b>Age:</b> ${dinosaur.Age} years<br>
+          <b>Sex:</b> ${dinosaur.Sex}
+        `);
+      });
     });
+    
   </script>
 </body>
 </html>
